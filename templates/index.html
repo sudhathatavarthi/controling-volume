@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Gesture Volume Control</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+margin:0;
+font-family:Segoe UI,Arial;
+background:radial-gradient(circle,#0f172a,#020617);
+color:#e5e7eb;
+}
+.container{padding:25px}
+h1{text-align:center;color:#38bdf8}
+
+.dashboard{
+display:grid;
+grid-template-columns:1.2fr 2fr;
+gap:25px;
+}
+
+.card{
+background:rgba(255,255,255,0.05);
+border-radius:18px;
+padding:20px;
+box-shadow:0 0 20px rgba(56,189,248,0.15);
+}
+
+img{
+width:100%;
+border-radius:14px;
+border:2px solid #38bdf8;
+}
+
+.controls{
+display:flex;
+justify-content:center;
+gap:15px;
+margin-top:15px;
+}
+
+button{
+padding:10px 22px;
+border:none;
+border-radius:20px;
+cursor:pointer;
+font-weight:600;
+}
+
+.start{background:#22c55e}
+.freeze{background:#facc15}
+.stop{background:#ef4444;color:white}
+
+canvas{height:260px!important}
+
+/* Volume bar */
+.volume-bar-bg{
+width:100%;
+height:16px;
+background:rgba(255,255,255,0.15);
+border-radius:10px;
+overflow:hidden;
+}
+.volume-bar-fill{
+height:100%;
+width:0%;
+border-radius:10px;
+transition:width 0.4s ease, background 0.4s ease;
+}
+
+/* Gesture keyboard */
+.gesture-board{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:15px;
+margin-top:15px;
+}
+.gesture-key{
+padding:15px;
+border-radius:14px;
+text-align:center;
+font-weight:600;
+background:rgba(255,255,255,0.08);
+}
+.active{
+background:#38bdf8;
+color:#020617;
+box-shadow:0 0 15px #38bdf8;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+<h1>Gesture Based Volume Control</h1>
+
+<div class="dashboard">
+
+<div class="card">
+<h3>Live Camera</h3>
+<img src="{{ url_for('video_feed') }}">
+<div class="controls">
+<button class="start" onclick="control('start')">Start</button>
+<button class="freeze" onclick="control('freeze')">Pause</button>
+<button class="stop" onclick="control('stop')">Stop</button>
+</div>
+
+<h3>Manual Calibration</h3>
+Min <input id="minVal" type="number" value="20">
+Max <input id="maxVal" type="number" value="200"><br><br>
+<button onclick="applyCalibration()">Apply Calibration</button>
+</div>
+
+<div class="card">
+<h3>Live Distance Graph</h3>
+<canvas id="chart"></canvas>
+
+<h3>Volume Visualization</h3>
+<div class="volume-bar-bg">
+<div class="volume-bar-fill" id="volumeFill"></div>
+</div>
+<div id="volumeText">0%</div>
+
+<h3>Gesture Dashboard</h3>
+<div class="gesture-board">
+<div id="OPEN" class="gesture-key">OPEN</div>
+<div id="CLOSED" class="gesture-key">CLOSED</div>
+<div id="PINCH" class="gesture-key">PINCH</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<script>
+function control(a){fetch("/"+a);}
+
+function applyCalibration(){
+fetch("/apply_calibration",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({min:minVal.value,max:maxVal.value})
+});
+}
+
+const ctx=document.getElementById("chart").getContext("2d");
+let dData=[];
+const chart=new Chart(ctx,{
+type:"line",
+data:{labels:[],datasets:[{
+label:"Distance",
+data:dData,
+borderColor:"#38bdf8",
+tension:0.4,
+pointRadius:0
+}]},
+options:{responsive:true,maintainAspectRatio:false,animation:false}
+});
+
+setInterval(()=>{
+fetch("/metrics").then(r=>r.json()).then(d=>{
+dData.push(d.distance);
+chart.data.labels.push("");
+if(dData.length>40){dData.shift();chart.data.labels.shift();}
+chart.update("none");
+
+volumeFill.style.width=d.volume+"%";
+volumeText.innerText=d.volume+"%";
+volumeFill.style.background =
+d.volume<30?"#22c55e":d.volume<70?"#facc15":"#ef4444";
+
+["OPEN","CLOSED","PINCH"].forEach(k=>{
+document.getElementById(k).classList.remove("active");
+});
+document.getElementById(d.gesture).classList.add("active");
+});
+},400);
+</script>
+
+</body>
+</html>

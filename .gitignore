@@ -1,0 +1,4 @@
+git add .gitignore
+git add app.py templates
+git commit -m "Add Flask gesture volume control app"
+git push -u origin main
