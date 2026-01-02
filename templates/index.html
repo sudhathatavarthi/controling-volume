@@ -1,182 +1,223 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Gesture Volume Control</title>
+
+<!-- Bootstrap 5 -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{
-margin:0;
-font-family:Segoe UI,Arial;
-background:radial-gradient(circle,#0f172a,#020617);
-color:#e5e7eb;
+    background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+    color: white;
+    font-family: "Segoe UI", sans-serif;
 }
-.container{padding:25px}
-h1{text-align:center;color:#38bdf8}
-
-.dashboard{
-display:grid;
-grid-template-columns:1.2fr 2fr;
-gap:25px;
+body.light{
+    background:#f4f6f9;
+    color:#111;
 }
 
 .card{
-background:rgba(255,255,255,0.05);
-border-radius:18px;
-padding:20px;
-box-shadow:0 0 20px rgba(56,189,248,0.15);
+    background: rgba(255,255,255,0.12);
+    border-radius:18px;
+    border:none;
 }
 
-img{
-width:100%;
-border-radius:14px;
-border:2px solid #38bdf8;
+/* Camera */
+.video-box img{
+    width:100%;
+    border-radius:16px;
+    border:3px solid rgba(255,255,255,0.25);
 }
 
-.controls{
-display:flex;
-justify-content:center;
-gap:15px;
-margin-top:15px;
+/* Bigger Graph */
+#chart{
+    height:340px !important;
 }
 
-button{
-padding:10px 22px;
-border:none;
-border-radius:20px;
-cursor:pointer;
-font-weight:600;
+/* Volume Bar */
+.volume-bar{
+    height:20px;
+    background:#666;
+    border-radius:12px;
+    overflow:hidden;
+}
+.volume-fill{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg,#00ff87,#ff9800,#ff3c3c);
+    transition: width 0.3s ease;
 }
 
-.start{background:#22c55e}
-.freeze{background:#facc15}
-.stop{background:#ef4444;color:white}
-
-canvas{height:260px!important}
-
-/* Volume bar */
-.volume-bar-bg{
-width:100%;
-height:16px;
-background:rgba(255,255,255,0.15);
-border-radius:10px;
-overflow:hidden;
+/* Alerts */
+.alert-box{
+    padding:8px;
+    border-radius:8px;
+    font-weight:600;
 }
-.volume-bar-fill{
-height:100%;
-width:0%;
-border-radius:10px;
-transition:width 0.4s ease, background 0.4s ease;
-}
-
-/* Gesture keyboard */
-.gesture-board{
-display:grid;
-grid-template-columns:repeat(3,1fr);
-gap:15px;
-margin-top:15px;
-}
-.gesture-key{
-padding:15px;
-border-radius:14px;
-text-align:center;
-font-weight:600;
-background:rgba(255,255,255,0.08);
-}
-.active{
-background:#38bdf8;
-color:#020617;
-box-shadow:0 0 15px #38bdf8;
-}
+.low{background:#2e7d32;}
+.medium{background:#ff9800;}
+.high{background:#c62828;}
 </style>
 </head>
 
 <body>
-<div class="container">
-<h1>Gesture Based Volume Control</h1>
 
-<div class="dashboard">
+<div class="container-fluid p-4">
+<div class="row g-4">
 
-<div class="card">
-<h3>Live Camera</h3>
-<img src="{{ url_for('video_feed') }}">
-<div class="controls">
-<button class="start" onclick="control('start')">Start</button>
-<button class="freeze" onclick="control('freeze')">Pause</button>
-<button class="stop" onclick="control('stop')">Stop</button>
+<!-- LEFT COLUMN -->
+<div class="col-lg-4">
+
+    <!-- Camera -->
+    <div class="card p-3 mb-3">
+        <div class="video-box">
+            <img src="{{ url_for('video_feed') }}">
+        </div>
+    </div>
+
+    <!-- Calibration -->
+    <div class="card p-3 mb-3">
+        <h6 class="mb-2">Calibration</h6>
+        <div class="row g-2">
+            <div class="col">
+                <input id="minVal" type="number" class="form-control" value="30">
+            </div>
+            <div class="col">
+                <input id="maxVal" type="number" class="form-control" value="200">
+            </div>
+            <div class="col-12">
+                <button class="btn btn-primary w-100" onclick="applyCalibration()">
+                    Apply Calibration
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Volume Bar BELOW calibration -->
+    <div class="card p-3">
+        <div class="volume-bar mb-2">
+            <div class="volume-fill" id="fill"></div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center">
+            <span>Volume: <b id="volume">0%</b></span>
+            <span id="alert" class="alert-box low">Low Volume</span>
+        </div>
+    </div>
+
 </div>
 
-<h3>Manual Calibration</h3>
-Min <input id="minVal" type="number" value="20">
-Max <input id="maxVal" type="number" value="200"><br><br>
-<button onclick="applyCalibration()">Apply Calibration</button>
-</div>
+<!-- RIGHT COLUMN -->
+<div class="col-lg-8">
 
-<div class="card">
-<h3>Live Distance Graph</h3>
-<canvas id="chart"></canvas>
+    <!-- BIG GRAPH -->
+    <div class="card p-4 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Live Volume Graph</h5>
+            <button class="btn btn-sm btn-outline-light" onclick="toggleTheme()">🌙 / ☀</button>
+        </div>
+        <canvas id="chart"></canvas>
+    </div>
 
-<h3>Volume Visualization</h3>
-<div class="volume-bar-bg">
-<div class="volume-bar-fill" id="volumeFill"></div>
-</div>
-<div id="volumeText">0%</div>
+    <!-- Controls -->
+    <div class="card p-3 mb-3 text-center">
+        <button class="btn btn-success me-2" onclick="send('start')">Start</button>
+        <button class="btn btn-danger me-2" onclick="send('stop')">Stop</button>
+        <button class="btn btn-warning" onclick="send('freeze')">Freeze</button>
+    </div>
 
-<h3>Gesture Dashboard</h3>
-<div class="gesture-board">
-<div id="OPEN" class="gesture-key">OPEN</div>
-<div id="CLOSED" class="gesture-key">CLOSED</div>
-<div id="PINCH" class="gesture-key">PINCH</div>
-</div>
+    <!-- Metrics -->
+    <div class="card p-3">
+        <div class="row text-center">
+            <div class="col"><b>Gesture</b><br><span id="gesture">-</span></div>
+            <div class="col"><b>Distance</b><br><span id="distance">0</span></div>
+            <div class="col"><b>Stability</b><br><span id="stability">0%</span></div>
+            <div class="col"><b>FPS</b><br><span id="fps">0</span></div>
+        </div>
+    </div>
+
 </div>
 
 </div>
 </div>
 
 <script>
-function control(a){fetch("/"+a);}
+let vol=[], labels=[];
 
-function applyCalibration(){
-fetch("/apply_calibration",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({min:minVal.value,max:maxVal.value})
+/* Chart (optimized) */
+const ctx=document.getElementById("chart").getContext("2d");
+const chart=new Chart(ctx,{
+    type:"line",
+    data:{labels:labels,datasets:[{
+        data:vol,
+        borderColor:"#00ff87",
+        borderWidth:3,
+        tension:0.25
+    }]},
+    options:{
+        animation:false,
+        responsive:true,
+        plugins:{legend:{display:false}},
+        scales:{y:{min:0,max:100}}
+    }
+});
+
+/* Update UI */
+function update(){
+fetch("/metrics")
+.then(r=>r.json())
+.then(d=>{
+    gesture.innerText=d.gesture;
+    distance.innerText=d.distance;
+    stability.innerText=d.stability+"%";
+    fps.innerText=d.fps;
+    volume.innerText=d.volume+"%";
+    fill.style.width=d.volume+"%";
+
+    const alert=document.getElementById("alert");
+    alert.className="alert-box";
+
+    if(d.volume<=30){
+        alert.innerText="🔈 Low";
+        alert.classList.add("low");
+    }else if(d.volume<=70){
+        alert.innerText="🔊 Medium";
+        alert.classList.add("medium");
+    }else{
+        alert.innerText="⚠ High";
+        alert.classList.add("high");
+    }
+
+    if(vol.length>50){vol.shift();labels.shift();}
+    vol.push(d.volume);labels.push("");
+    chart.update("none");   // <-- faster redraw
 });
 }
 
-const ctx=document.getElementById("chart").getContext("2d");
-let dData=[];
-const chart=new Chart(ctx,{
-type:"line",
-data:{labels:[],datasets:[{
-label:"Distance",
-data:dData,
-borderColor:"#38bdf8",
-tension:0.4,
-pointRadius:0
-}]},
-options:{responsive:true,maintainAspectRatio:false,animation:false}
+function send(a){
+fetch("/control",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({action:a})
 });
+}
 
-setInterval(()=>{
-fetch("/metrics").then(r=>r.json()).then(d=>{
-dData.push(d.distance);
-chart.data.labels.push("");
-if(dData.length>40){dData.shift();chart.data.labels.shift();}
-chart.update("none");
-
-volumeFill.style.width=d.volume+"%";
-volumeText.innerText=d.volume+"%";
-volumeFill.style.background =
-d.volume<30?"#22c55e":d.volume<70?"#facc15":"#ef4444";
-
-["OPEN","CLOSED","PINCH"].forEach(k=>{
-document.getElementById(k).classList.remove("active");
+function applyCalibration(){
+fetch("/calibrate",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({min:minVal.value,max:maxVal.value})
 });
-document.getElementById(d.gesture).classList.add("active");
-});
-},400);
+}
+
+function toggleTheme(){
+document.body.classList.toggle("light");
+}
+
+/* Slower interval = smoother + less CPU */
+setInterval(update,400);
 </script>
 
 </body>
